@@ -38,6 +38,7 @@ export interface Storage {
   web_proxy: boolean
   webdav_policy: WebdavPolicy
   disabled: boolean
+  driver_proxy_addr: string
 }
 
 export type Addition = Record<string, string | boolean | number>

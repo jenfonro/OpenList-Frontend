@@ -38,7 +38,9 @@
       "back": "Extract to back"
     },
     "enable_sign": "Enable sign",
-    "disable_index": "Disable index"
+    "disable_index": "Disable index",
+    "driver_proxy_addr": "Driver Proxy Address",
+    "driver_proxy_addr-tips": "Driver proxy server address (e.g., http://proxy.example.com:8080)"
   },
   "table_fields": {
     "status": {
