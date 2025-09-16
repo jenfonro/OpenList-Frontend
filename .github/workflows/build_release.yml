@@ -78,10 +78,9 @@ jobs:
       #     git_tag_gpgsign: true
 
       - name: Setup CI Bot
-        if: github.event_name == 'workflow_dispatch'
         run: |
-          git config user.name "${{ secrets.BOT_USERNAME }}"
-          git config user.email "${{ secrets.BOT_USEREMAIL }}"
+          git config user.name "${{ secrets.BOT_USERNAME || 'GitHub Actions' }}"
+          git config user.email "${{ secrets.BOT_USEREMAIL || 'actions@github.com' }}"
 
       - name: Update package.json and commit
         if: github.event_name == 'workflow_dispatch'
