@@ -14,6 +14,7 @@
   "decompress_download_task_threads_num": "Decompress download task threads num",
   "decompress_upload_task_threads_num": "Decompress upload task threads num",
   "default_page_size": "Default page size",
+  "storage_proxy_addr": "Storage proxy address",
   "external_previews": "External previews",
   "favicon": "Favicon",
   "filename_char_mapping": "Filename char mapping",
