@@ -579,7 +579,9 @@
     },
     "refresh_token": "Refresh token",
     "root_folder_id": "Root folder id",
-    "use_online_api": "Use online api"
+    "use_online_api": "Use online api",
+    "use_proxy": "Use proxy",
+    "use_proxy-tips": "Use global proxy settings for this driver"
   },
   "GooglePhoto": {
     "client_id": "Client id",
