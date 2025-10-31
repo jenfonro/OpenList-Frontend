@@ -83,8 +83,15 @@ export const fsMove = (
   dst_dir: string,
   names: string[],
   overwrite: boolean,
+  skipExisting: boolean,
 ): PEmptyResp => {
-  return r.post("/fs/move", { src_dir, dst_dir, names, overwrite })
+  return r.post("/fs/move", {
+    src_dir,
+    dst_dir,
+    names,
+    overwrite,
+    skipExisting,
+  })
 }
 
 export const fsRecursiveMove = (
@@ -100,8 +107,15 @@ export const fsCopy = (
   dst_dir: string,
   names: string[],
   overwrite: boolean,
+  skipExisting: boolean,
 ): PEmptyResp => {
-  return r.post("/fs/copy", { src_dir, dst_dir, names, overwrite })
+  return r.post("/fs/copy", {
+    src_dir,
+    dst_dir,
+    names,
+    overwrite,
+    skipExisting,
+  })
 }
 
 export const fsRemove = (dir: string, names: string[]): PEmptyResp => {
