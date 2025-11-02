@@ -108,6 +108,7 @@ export const fsCopy = (
   names: string[],
   overwrite: boolean,
   skipExisting: boolean,
+  merge: boolean,
 ): PEmptyResp => {
   return r.post("/fs/copy", {
     src_dir,
@@ -115,6 +116,7 @@ export const fsCopy = (
     names,
     overwrite,
     skipExisting,
+    merge,
   })
 }
 
