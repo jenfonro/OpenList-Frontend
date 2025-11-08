@@ -29,6 +29,7 @@ import {
   createEffect,
   on,
   JSXElement,
+  onMount,
 } from "solid-js"
 import { useFetch, useT, useUtil } from "~/hooks"
 import { getMainColor, password } from "~/store"
@@ -42,6 +43,8 @@ import {
   fsDirs,
   createMatcher,
   fsMkdir,
+  validateFilename,
+  notify,
 } from "~/utils"
 
 export type FolderTreeHandler = {
@@ -224,6 +227,8 @@ const FolderTreeNode = (props: { path: string }) => {
   )
 }
 
+const FOCUS_DELAY_MS = 0 // allow DOM to mount before focusing
+
 const FolderNameInput = (props: { 
   parentPath: string
   onCancel: () => void
@@ -236,30 +241,40 @@ const FolderNameInput = (props: {
   const handleSubmit = async () => {
     const name = folderName().trim()
     if (!name || loading()) return
+
+    const validation = validateFilename(name)
+    if (!validation.valid) {
+      notify.warning(t(`global.${validation.error}`))
+      return
+    }
     
     const fullPath = pathJoin(props.parentPath, name)
     const resp = await mkdir(fullPath)
-    handleRespWithNotifySuccess(resp, () => {
-      props.onSuccess()
-    })
+    handleRespWithNotifySuccess(
+      resp,
+      () => {
+        props.onSuccess()
+      },
+      () => {
+        props.onCancel()
+      },
+    )
   }
   
   let inputRef: HTMLInputElement | undefined
   
-  createEffect(() => {
-    if (inputRef) {
-      setTimeout(() => {
-        inputRef?.focus()
-        inputRef?.select()
-      }, 0)
-    }
+  onMount(() => {
+    setTimeout(() => {
+      inputRef?.focus()
+      inputRef?.select()
+    }, FOCUS_DELAY_MS)
   })
   
   return (
     <HStack spacing="$2" w="$full" pl="$4" alignItems="center">
       <Icon color={getMainColor()} as={BiSolidFolderOpen} />
       <Input
-        ref={inputRef}
+        ref={(el) => (inputRef = el)}
         value={folderName()}
         onInput={(e) => setFolderName(e.currentTarget.value)}
         placeholder={t("home.toolbar.input_dir_name")}
@@ -273,12 +288,13 @@ const FolderNameInput = (props: {
             props.onCancel()
           }
         }}
-        onBlur={() => {
-          setTimeout(() => {
-            if (!loading() && !folderName().trim()) {
-              props.onCancel()
-            }
-          }, 200)
+        onBlur={(e) => {
+          if (loading()) return
+          const next = e.relatedTarget as HTMLElement | null
+          if (next?.dataset.folderAction === "true") return
+          if (!folderName().trim()) {
+            props.onCancel()
+          }
         }}
       />
       <Show
@@ -287,31 +303,33 @@ const FolderNameInput = (props: {
           <Spinner size="sm" color={getMainColor()} />
         }
       >
-        <Icon
-          as={TbCheck}
-          boxSize="$6"
-          color="$success9"
+        <Button
+          aria-label={t("global.ok")}
+          size="sm"
+          variant="ghost"
           rounded="$md"
           p="$1"
-          cursor="pointer"
-          _hover={{ bgColor: hoverColor() }}
-          _active={{ transform: "scale(.94)" }}
+          color="$success9"
           onClick={handleSubmit}
-          aria-label={t("global.ok")}
-        />
+          tabIndex={0}
+          data-folder-action="true"
+        >
+          <Icon as={TbCheck} boxSize="$6" />
+        </Button>
       </Show>
-      <Icon
-        as={TbX}
-        boxSize="$6"
-        color="$danger9"
+      <Button
+        aria-label={t("global.cancel")}
+        size="sm"
+        variant="ghost"
         rounded="$md"
         p="$1"
-        cursor="pointer"
-        _hover={{ bgColor: hoverColor() }}
-        _active={{ transform: "scale(.94)" }}
+        color="$danger9"
         onClick={props.onCancel}
-        aria-label={t("global.cancel")}
-      />
+        tabIndex={0}
+        data-folder-action="true"
+      >
+        <Icon as={TbX} boxSize="$6" />
+      </Button>
     </HStack>
   )
 }
