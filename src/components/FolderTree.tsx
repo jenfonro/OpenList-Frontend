@@ -67,17 +67,19 @@ interface FolderTreeContext extends Omit<FolderTreeProps, "handle"> {
 const context = createContext<FolderTreeContext>()
 export const FolderTree = (props: FolderTreeProps) => {
   const [path, setPath] = createSignal("/")
-  const [creatingFolderPath, setCreatingFolderPath] = createSignal<string | null>(null)
-  
+  const [creatingFolderPath, setCreatingFolderPath] = createSignal<
+    string | null
+  >(null)
+
   const startCreateFolder = () => {
     setCreatingFolderPath(path())
   }
-  
-  props.handle?.({ 
+
+  props.handle?.({
     setPath,
-    startCreateFolder
+    startCreateFolder,
   })
-  
+
   return (
     <Box class="folder-tree-box" w="$full" overflowX="auto">
       <context.Provider
@@ -145,14 +147,14 @@ const FolderTreeNode = (props: { path: string }) => {
     }
   }
   createEffect(on(value, checkIfShouldOpen))
-  
+
   createEffect(() => {
     if (creatingFolderPath() === props.path) {
       if (!isOpen()) onToggle()
       if (!isLoaded) load()
     }
   })
-  
+
   const isHiddenFolder = () =>
     isHidePath(props.path) && !isMatchedFolder(value())
   return (
@@ -211,11 +213,12 @@ const FolderTreeNode = (props: { path: string }) => {
               )}
             </For>
             <Show when={creatingFolderPath() === props.path}>
-              <FolderNameInput 
-                parentPath={props.path} 
+              <FolderNameInput
+                parentPath={props.path}
                 onCancel={() => setCreatingFolderPath(null)}
-                onSuccess={() => {
+                onSuccess={(fullPath) => {
                   setCreatingFolderPath(null)
+                  onChange(fullPath)
                   load(true)
                 }}
               />
@@ -229,15 +232,15 @@ const FolderTreeNode = (props: { path: string }) => {
 
 const FOCUS_DELAY_MS = 0 // allow DOM to mount before focusing
 
-const FolderNameInput = (props: { 
+const FolderNameInput = (props: {
   parentPath: string
   onCancel: () => void
-  onSuccess: () => void
+  onSuccess: (fullPath: string) => void
 }) => {
   const t = useT()
   const [folderName, setFolderName] = createSignal("")
   const [loading, mkdir] = useFetch(fsMkdir)
-  
+
   const handleSubmit = async () => {
     const name = folderName().trim()
     if (!name || loading()) return
@@ -247,29 +250,29 @@ const FolderNameInput = (props: {
       notify.warning(t(`global.${validation.error}`))
       return
     }
-    
+
     const fullPath = pathJoin(props.parentPath, name)
     const resp = await mkdir(fullPath)
     handleRespWithNotifySuccess(
       resp,
       () => {
-        props.onSuccess()
+        props.onSuccess(fullPath)
       },
       () => {
         props.onCancel()
       },
     )
   }
-  
+
   let inputRef: HTMLInputElement | undefined
-  
+
   onMount(() => {
     setTimeout(() => {
       inputRef?.focus()
       inputRef?.select()
     }, FOCUS_DELAY_MS)
   })
-  
+
   return (
     <HStack spacing="$2" w="$full" pl="$4" alignItems="center">
       <Icon color={getMainColor()} as={BiSolidFolderOpen} />
@@ -299,9 +302,7 @@ const FolderNameInput = (props: {
       />
       <Show
         when={!loading()}
-        fallback={
-          <Spinner size="sm" color={getMainColor()} />
-        }
+        fallback={<Spinner size="sm" color={getMainColor()} />}
       >
         <Button
           aria-label={t("global.ok")}
@@ -367,7 +368,9 @@ export const ModalFolderChoose = (props: ModalFolderChooseProps) => {
         <ModalHeader w="$full" css={{ overflowWrap: "break-word" }}>
           <HStack w="$full" justifyContent="space-between" alignItems="center">
             <Box css={{ overflowWrap: "break-word" }}>{props.header}</Box>
-            <Show when={props.headerSlot && handler()}>{props.headerSlot!(handler()!)}</Show>
+            <Show when={props.headerSlot && handler()}>
+              {props.headerSlot!(handler()!)}
+            </Show>
           </HStack>
         </ModalHeader>
         <ModalBody>
