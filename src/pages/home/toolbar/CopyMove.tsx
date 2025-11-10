@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { Checkbox, createDisclosure, VStack } from "@hope-ui/solid"
-=======
-import { Checkbox, createDisclosure, Button } from "@hope-ui/solid"
->>>>>>> new_dir
+import { Button, Checkbox, createDisclosure, VStack } from "@hope-ui/solid"
 import { createSignal, onCleanup } from "solid-js"
 import { ModalFolderChoose, FolderTreeHandler } from "~/components"
 import { useFetch, usePath, useRouter, useT } from "~/hooks"
