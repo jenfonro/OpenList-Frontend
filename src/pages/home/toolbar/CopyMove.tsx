@@ -32,6 +32,8 @@ export const Copy = () => {
     if (name === "copy") {
       onOpen()
       setOverwrite(false)
+      setSkipExisting(false)
+      setMerge(false)
     }
   }
   bus.on("tool", handler)
@@ -113,6 +115,7 @@ export const Move = () => {
     if (name === "move") {
       onOpen()
       setOverwrite(false)
+      setSkipExisting(false)
     }
   }
   bus.on("tool", handler)
