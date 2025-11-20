@@ -331,6 +331,8 @@
     "refresh_token": "刷新令牌",
     "root_folder_path": "根文件夹路径",
     "upload_api": "上传 API",
+    "upload_timeout": "上传分片超时",
+    "upload_timeout-tips": "每个分片上传的超时时间（秒）",
     "upload_thread": "上传线程",
     "upload_thread-tips": "1 ≤ 线程 ≤ 32",
     "use_dynamic_upload_api": "使用动态的上传API",
