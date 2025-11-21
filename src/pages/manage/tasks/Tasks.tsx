@@ -21,7 +21,7 @@ import {
 } from "solid-js"
 import { Paginator } from "~/components"
 import { useFetch, useT } from "~/hooks"
-import { PEmptyResp, PResp, TaskInfo } from "~/types"
+import { PEmptyResp, PResp, TaskInfo, TaskListResp } from "~/types"
 import { handleResp, notify, r } from "~/utils"
 import { TaskCol, cols, Task, TaskOrderBy, TaskLocal } from "./Task"
 import { me } from "~/store"
@@ -57,8 +57,21 @@ export type TaskAttribute = TaskInfo & TaskViewAttribute & TaskLocalContainer
 
 export const Tasks = (props: TasksProps) => {
   const t = useT()
+  const pageSize = 20
+  const [page, setPage] = createSignal(1)
+  const [total, setTotal] = createSignal(0)
+  const [keyword, setKeyword] = createSignal("")
+  const [showOnlyMine, setShowOnlyMine] = createSignal(me().role !== 2)
   const [loading, get] = useFetch(
-    (): PResp<TaskInfo[]> => r.get(`/task/${props.type}/${props.done}`),
+    (): PResp<TaskListResp> =>
+      r.get(`/task/${props.type}/${props.done}`, {
+        params: {
+          page: page(),
+          size: pageSize,
+          keyword: keyword(),
+          mine: showOnlyMine(),
+        },
+      }),
   )
   const [tasks, setTasks] = createSignal<TaskAttribute[]>([])
   const [orderBy, setOrderBy] = createSignal<TaskOrderBy>("name")
@@ -91,6 +104,7 @@ export const Tasks = (props: TasksProps) => {
   const refresh = async () => {
     const resp = await get()
     handleResp(resp, (data) => {
+      setTotal(data.total ?? 0)
       const fetchTime = new Date().getTime()
       const curFetchTimeMap: Record<string, number> = {}
       const prevFetchTimeMap: Record<string, number | undefined> = {}
@@ -105,7 +119,7 @@ export const Tasks = (props: TasksProps) => {
         taskLocalMap[task.id] = task.local
       }
       setTasks(
-        data
+        data.tasks
           ?.map((task) => {
             let prevFetchTime: number | undefined
             let prevProgress: number | undefined
@@ -146,63 +160,38 @@ export const Tasks = (props: TasksProps) => {
   const [retryFailedLoading, retryFailed] = useFetch(
     (): PEmptyResp => r.post(`/task/${props.type}/retry_failed`),
   )
-  const [regexFilterValue, setRegexFilterValue] = createSignal("")
-  const [regexFilter, setRegexFilter] = createSignal(new RegExp(""))
-  const [regexCompileFailed, setRegexCompileFailed] = createSignal(false)
-  createEffect(() => {
-    try {
-      setRegexFilter(new RegExp(regexFilterValue()))
-      setRegexCompileFailed(false)
-    } catch (_) {
-      setRegexCompileFailed(true)
-    }
-  })
-  const [showOnlyMine, setShowOnlyMine] = createSignal(me().role !== 2)
-  const taskFilter = createMemo(() => {
-    const regex = regexFilter()
-    const mine = showOnlyMine()
-    return (task: TaskInfo): boolean =>
-      regex.test(task.name) && (!mine || task.creator === me().username)
-  })
-  const filteredTask = createMemo(() => {
-    return tasks().filter(taskFilter())
-  })
   const allSelected = createMemo(() =>
-    filteredTask()
+    tasks()
       .map((task) => task.local.selected)
       .every(Boolean),
   )
   const isIndeterminate = createMemo(
     () =>
-      filteredTask()
+      tasks()
         .map((task) => task.local.selected)
         .some(Boolean) && !allSelected(),
   )
   const selectAll = (v: boolean) =>
     setTasks(
       tasks().map((task) => {
-        if (taskFilter()(task)) {
-          task.local.selected = v
-        }
+        task.local.selected = v
         return task
       }),
     )
   const allExpanded = createMemo(() =>
-    filteredTask()
+    tasks()
       .map((task) => task.local.expanded)
       .every(Boolean),
   )
   const expandAll = (v: boolean) =>
     setTasks(
       tasks().map((task) => {
-        if (taskFilter()(task)) {
-          task.local.expanded = v
-        }
+        task.local.expanded = v
         return task
       }),
     )
   const getSelectedId = () =>
-    filteredTask()
+    tasks()
       .filter((task) => task.local.selected)
       .map((task) => task.id)
   const [retrySelectedLoading, retrySelected] = useFetch(
@@ -217,13 +206,12 @@ export const Tasks = (props: TasksProps) => {
       notify.error(`${key}: ${value}`)
     })
   }
-  const [page, setPage] = createSignal(1)
-  const pageSize = 20
   const operateName = props.done === "undone" ? "cancel" : "delete"
-  const curTasks = createMemo(() => {
-    const start = (page() - 1) * pageSize
-    const end = start + pageSize
-    return filteredTask().slice(start, end)
+  createEffect(() => {
+    keyword()
+    showOnlyMine()
+    setPage(1)
+    refresh()
   })
   const itemProps = (col: TaskCol) => {
     return {
@@ -329,9 +317,8 @@ export const Tasks = (props: TasksProps) => {
         <Input
           width="auto"
           placeholder={t(`tasks.filter`)}
-          value={regexFilterValue()}
-          onInput={(e: any) => setRegexFilterValue(e.target.value as string)}
-          invalid={regexCompileFailed()}
+          value={keyword()}
+          onInput={(e: any) => setKeyword(e.target.value as string)}
         />
         <Show when={me().role === 2}>
           <Checkbox
@@ -353,7 +340,7 @@ export const Tasks = (props: TasksProps) => {
         <HStack class="title" w="$full" p="$2">
           <HStack w={cols[0].w} spacing="$1">
             <Checkbox
-              disabled={filteredTask().length === 0}
+              disabled={tasks().length === 0}
               checked={allSelected()}
               indeterminate={isIndeterminate()}
               onChange={(e: any) => selectAll(e.target.checked as boolean)}
@@ -397,21 +384,22 @@ export const Tasks = (props: TasksProps) => {
               size="xs"
               colorScheme="neutral"
               onClick={() => expandAll(!allExpanded())}
-              disabled={filteredTask().length === 0}
+              disabled={tasks().length === 0}
             >
               {allExpanded() ? t(`tasks.fold_all`) : t(`tasks.expand_all`)}
             </Button>
           </Flex>
         </HStack>
-        {curTasks().map((task) => (
+        {tasks().map((task) => (
           <Task {...task} {...props} setLocal={getLocalSetter(task.id)} />
         ))}
       </VStack>
       <Paginator
-        total={filteredTask().length}
+        total={total()}
         defaultPageSize={pageSize}
         onChange={(p) => {
           setPage(p)
+          refresh()
         }}
       />
     </VStack>

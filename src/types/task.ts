@@ -11,3 +11,8 @@ export interface TaskInfo {
   total_bytes: number
   error: string
 }
+
+export interface TaskListResp {
+  total: number
+  tasks: TaskInfo[]
+}
