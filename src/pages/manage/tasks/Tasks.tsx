@@ -101,7 +101,11 @@ export const Tasks = (props: TasksProps) => {
     return (a: TaskInfo, b: TaskInfo) =>
       (orderReverse() ? -1 : 1) * sorter[orderBy()](a, b)
   })
-  const refresh = async () => {
+  const refresh = async (targetPage?: number) => {
+    // 允许从分页控件传入页码
+    if (typeof targetPage === "number" && targetPage !== page()) {
+      setPage(targetPage)
+    }
     const resp = await get()
     handleResp(resp, (data) => {
       setTotal(data.total ?? 0)
@@ -146,7 +150,12 @@ export const Tasks = (props: TasksProps) => {
       )
     })
   }
+  createEffect(() => {
+  createEffect(() => {
+  // 初次加载当前页
   refresh()
+  })
+  })
   if (props.done === "undone") {
     const interval = setInterval(refresh, 2000)
     onCleanup(() => clearInterval(interval))
@@ -211,7 +220,7 @@ export const Tasks = (props: TasksProps) => {
     keyword()
     showOnlyMine()
     setPage(1)
-    refresh()
+    refresh(1)
   })
   const itemProps = (col: TaskCol) => {
     return {
@@ -233,7 +242,7 @@ export const Tasks = (props: TasksProps) => {
             setOrderReverse(false)
           })
         }
-        refresh()
+        refresh(page())
       },
     }
   }
@@ -398,8 +407,7 @@ export const Tasks = (props: TasksProps) => {
         total={total()}
         defaultPageSize={pageSize}
         onChange={(p) => {
-          setPage(p)
-          refresh()
+          refresh(p)
         }}
       />
     </VStack>
