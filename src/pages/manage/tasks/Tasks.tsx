@@ -11,7 +11,6 @@ import {
 } from "@hope-ui/solid"
 import {
   batch,
-  createEffect,
   createMemo,
   createSignal,
   For,
@@ -21,7 +20,7 @@ import {
 } from "solid-js"
 import { Paginator } from "~/components"
 import { useFetch, useT } from "~/hooks"
-import { PEmptyResp, PResp, TaskInfo } from "~/types"
+import { PEmptyResp, PPageResp, TaskInfo } from "~/types"
 import { handleResp, notify, r } from "~/utils"
 import { TaskCol, cols, Task, TaskOrderBy, TaskLocal } from "./Task"
 import { me } from "~/store"
@@ -57,12 +56,16 @@ export type TaskAttribute = TaskInfo & TaskViewAttribute & TaskLocalContainer
 
 export const Tasks = (props: TasksProps) => {
   const t = useT()
-  const [loading, get] = useFetch(
-    (): PResp<TaskInfo[]> => r.get(`/task/${props.type}/${props.done}`),
-  )
+  const pageSize = 20
+  const [page, setPage] = createSignal(1)
+  const [total, setTotal] = createSignal(0)
   const [tasks, setTasks] = createSignal<TaskAttribute[]>([])
   const [orderBy, setOrderBy] = createSignal<TaskOrderBy>("name")
   const [orderReverse, setOrderReverse] = createSignal(false)
+  const [regexFilterValue, setRegexFilterValue] = createSignal("")
+  const [regexCompileFailed, setRegexCompileFailed] = createSignal(false)
+  const [showOnlyMine, setShowOnlyMine] = createSignal(me().role !== 2)
+  let resetPage: (() => void) | undefined
   const sorter: Record<TaskOrderBy, (a: TaskInfo, b: TaskInfo) => number> = {
     name: (a, b) => (a.name > b.name ? 1 : -1),
     creator: (a, b) =>
@@ -88,8 +91,24 @@ export const Tasks = (props: TasksProps) => {
     return (a: TaskInfo, b: TaskInfo) =>
       (orderReverse() ? -1 : 1) * sorter[orderBy()](a, b)
   })
-  const refresh = async () => {
-    const resp = await get()
+  const [loading, get] = useFetch(
+    (targetPage = page()): PPageResp<TaskInfo> =>
+      r.get(`/task/${props.type}/${props.done}`, {
+        params: {
+          page: targetPage,
+          page_size: pageSize,
+          order_by: orderBy(),
+          order: orderReverse() ? "desc" : "asc",
+          mine: showOnlyMine(),
+          regex:
+            regexCompileFailed() || regexFilterValue() === ""
+              ? undefined
+              : regexFilterValue(),
+        },
+      }),
+  )
+  const refresh = async (targetPage = page()) => {
+    const resp = await get(targetPage)
     handleResp(resp, (data) => {
       const fetchTime = new Date().getTime()
       const curFetchTimeMap: Record<string, number> = {}
@@ -104,8 +123,8 @@ export const Tasks = (props: TasksProps) => {
         prevProgressMap[task.id] = task.prevProgress
         taskLocalMap[task.id] = task.local
       }
-      setTasks(
-        data
+      const newTasks =
+        data?.content
           ?.map((task) => {
             let prevFetchTime: number | undefined
             let prevProgress: number | undefined
@@ -128,13 +147,22 @@ export const Tasks = (props: TasksProps) => {
               local: taskLocal,
             }
           })
-          .sort(curSorter()) ?? [],
-      )
+          .sort(curSorter()) ?? []
+      setTasks(newTasks)
+      setTotal(data?.total ?? 0)
+      setPage(targetPage)
     })
+  }
+  const resetAndRefresh = (targetPage = 1) => {
+    if (targetPage === 1) {
+      resetPage?.()
+    }
+    setPage(targetPage)
+    refresh(targetPage)
   }
   refresh()
   if (props.done === "undone") {
-    const interval = setInterval(refresh, 2000)
+    const interval = setInterval(() => refresh(page()), 2000)
     onCleanup(() => clearInterval(interval))
   }
   const [clearDoneLoading, clearDone] = useFetch(
@@ -146,26 +174,8 @@ export const Tasks = (props: TasksProps) => {
   const [retryFailedLoading, retryFailed] = useFetch(
     (): PEmptyResp => r.post(`/task/${props.type}/retry_failed`),
   )
-  const [regexFilterValue, setRegexFilterValue] = createSignal("")
-  const [regexFilter, setRegexFilter] = createSignal(new RegExp(""))
-  const [regexCompileFailed, setRegexCompileFailed] = createSignal(false)
-  createEffect(() => {
-    try {
-      setRegexFilter(new RegExp(regexFilterValue()))
-      setRegexCompileFailed(false)
-    } catch (_) {
-      setRegexCompileFailed(true)
-    }
-  })
-  const [showOnlyMine, setShowOnlyMine] = createSignal(me().role !== 2)
-  const taskFilter = createMemo(() => {
-    const regex = regexFilter()
-    const mine = showOnlyMine()
-    return (task: TaskInfo): boolean =>
-      regex.test(task.name) && (!mine || task.creator === me().username)
-  })
   const filteredTask = createMemo(() => {
-    return tasks().filter(taskFilter())
+    return tasks()
   })
   const allSelected = createMemo(() =>
     filteredTask()
@@ -181,9 +191,7 @@ export const Tasks = (props: TasksProps) => {
   const selectAll = (v: boolean) =>
     setTasks(
       tasks().map((task) => {
-        if (taskFilter()(task)) {
-          task.local.selected = v
-        }
+        task.local.selected = v
         return task
       }),
     )
@@ -195,9 +203,7 @@ export const Tasks = (props: TasksProps) => {
   const expandAll = (v: boolean) =>
     setTasks(
       tasks().map((task) => {
-        if (taskFilter()(task)) {
-          task.local.expanded = v
-        }
+        task.local.expanded = v
         return task
       }),
     )
@@ -205,6 +211,7 @@ export const Tasks = (props: TasksProps) => {
     filteredTask()
       .filter((task) => task.local.selected)
       .map((task) => task.id)
+  const operateName = props.done === "undone" ? "cancel" : "delete"
   const [retrySelectedLoading, retrySelected] = useFetch(
     (): PEmptyResp => r.post(`/task/${props.type}/retry_some`, getSelectedId()),
   )
@@ -217,14 +224,7 @@ export const Tasks = (props: TasksProps) => {
       notify.error(`${key}: ${value}`)
     })
   }
-  const [page, setPage] = createSignal(1)
-  const pageSize = 20
-  const operateName = props.done === "undone" ? "cancel" : "delete"
-  const curTasks = createMemo(() => {
-    const start = (page() - 1) * pageSize
-    const end = start + pageSize
-    return filteredTask().slice(start, end)
-  })
+  const curTasks = createMemo(() => filteredTask())
   const itemProps = (col: TaskCol) => {
     return {
       fontWeight: "bold",
@@ -245,7 +245,7 @@ export const Tasks = (props: TasksProps) => {
             setOrderReverse(false)
           })
         }
-        refresh()
+        refresh(page())
       },
     }
   }
@@ -265,14 +265,18 @@ export const Tasks = (props: TasksProps) => {
       <Heading size="lg">{t(`tasks.${props.done}`)}</Heading>
       <HStack gap="$2" flexWrap="wrap">
         <Show when={props.done === "done"}>
-          <Button colorScheme="accent" loading={loading()} onClick={refresh}>
+          <Button
+            colorScheme="accent"
+            loading={loading()}
+            onClick={() => refresh(page())}
+          >
             {t(`global.refresh`)}
           </Button>
           <Button
             loading={retryFailedLoading()}
             onClick={async () => {
               const resp = await retryFailed()
-              handleResp(resp, () => refresh())
+              handleResp(resp, () => refresh(page()))
             }}
           >
             {t(`tasks.retry_failed`)}
@@ -282,7 +286,7 @@ export const Tasks = (props: TasksProps) => {
             loading={clearDoneLoading()}
             onClick={async () => {
               const resp = await clearDone()
-              handleResp(resp, () => refresh())
+              handleResp(resp, () => resetAndRefresh())
             }}
           >
             {t(`global.clear`)}
@@ -292,7 +296,7 @@ export const Tasks = (props: TasksProps) => {
             loading={clearSucceededLoading()}
             onClick={async () => {
               const resp = await clearSucceeded()
-              handleResp(resp, () => refresh())
+              handleResp(resp, () => resetAndRefresh())
             }}
           >
             {t(`tasks.clear_succeeded`)}
@@ -306,7 +310,7 @@ export const Tasks = (props: TasksProps) => {
               const resp = await retrySelected()
               handleResp(resp, (data) => {
                 notifyIndividualError(data)
-                refresh()
+                refresh(page())
               })
             }}
           >
@@ -320,7 +324,7 @@ export const Tasks = (props: TasksProps) => {
             const resp = await operateSelected()
             handleResp(resp, (data) => {
               notifyIndividualError(data)
-              refresh()
+              refresh(page())
             })
           }}
         >
@@ -330,13 +334,29 @@ export const Tasks = (props: TasksProps) => {
           width="auto"
           placeholder={t(`tasks.filter`)}
           value={regexFilterValue()}
-          onInput={(e: any) => setRegexFilterValue(e.target.value as string)}
+          onInput={(e: any) => {
+            const value = e.target.value as string
+            setRegexFilterValue(value)
+            try {
+              if (value !== "") {
+                // validate regex ahead to avoid triggering backend errors
+                new RegExp(value)
+              }
+              setRegexCompileFailed(false)
+              resetAndRefresh()
+            } catch (_) {
+              setRegexCompileFailed(true)
+            }
+          }}
           invalid={regexCompileFailed()}
         />
         <Show when={me().role === 2}>
           <Checkbox
             checked={showOnlyMine()}
-            onChange={(e: any) => setShowOnlyMine(e.target.checked as boolean)}
+            onChange={(e: any) => {
+              setShowOnlyMine(e.target.checked as boolean)
+              resetAndRefresh()
+            }}
           >
             {t(`tasks.show_only_mine`)}
           </Checkbox>
@@ -408,10 +428,14 @@ export const Tasks = (props: TasksProps) => {
         ))}
       </VStack>
       <Paginator
-        total={filteredTask().length}
+        total={total()}
         defaultPageSize={pageSize}
+        setResetCallback={(cb) => {
+          resetPage = cb
+        }}
         onChange={(p) => {
           setPage(p)
+          refresh(p)
         }}
       />
     </VStack>
