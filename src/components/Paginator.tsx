@@ -3,12 +3,14 @@ import {
   Button,
   HStack,
   IconButton,
+  Input,
   Select,
   SelectContent,
   SelectListbox,
   SelectOption,
   SelectOptionText,
   SelectTrigger,
+  Text,
 } from "@hope-ui/solid"
 import { createMemo, For, mergeProps, Show } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -53,6 +55,15 @@ export const Paginator = (props: PaginatorProps) => {
   const pages = createMemo(() => {
     return Math.ceil(merged.total / store.pageSize)
   })
+  const clampPage = (page: number) => {
+    const total = pages()
+    if (total <= 0) return 1
+    if (page < 1) return 1
+    if (page > total) return total
+    return page
+  }
+  const maxSelectOptions = 200
+  const useSelect = createMemo(() => pages() <= maxSelectOptions)
   const leftPages = createMemo(() => {
     const current = store.current
     const min = Math.max(2, current - Math.floor(merged.maxShowPage / 2))
@@ -66,16 +77,14 @@ export const Paginator = (props: PaginatorProps) => {
     )
     return Array.from({ length: max - current }, (_, i) => current + 1 + i)
   })
-  const allPages = createMemo(() => {
-    return Array.from({ length: pages() }, (_, i) => 1 + i)
-  })
   const size = {
     "@initial": "sm",
     "@md": "md",
   } as const
   const onPageChange = (page: number) => {
-    setStore("current", page)
-    merged.onChange?.(page)
+    const next = clampPage(page)
+    setStore("current", next)
+    merged.onChange?.(next)
   }
   return (
     <Show when={!merged.hideOnSinglePage || pages() > 1}>
@@ -116,37 +125,63 @@ export const Paginator = (props: PaginatorProps) => {
             </Button>
           )}
         </For>
-        <Select
-          size={size}
-          variant="unstyled"
-          defaultValue={store.current}
-          onChange={(page) => {
-            onPageChange(+page)
-          }}
+        <Show
+          when={useSelect()}
+          fallback={
+            <HStack spacing="$1">
+              <Input
+                type="number"
+                size={size}
+                value={store.current}
+                min={1}
+                max={pages()}
+                onChange={(e) => {
+                  const value = Number(e.currentTarget.value)
+                  if (!Number.isFinite(value)) return
+                  onPageChange(value)
+                }}
+                w="90px"
+              />
+              <Text color="$neutral11" fontSize="$sm">
+                / {pages()}
+              </Text>
+            </HStack>
+          }
         >
-          <SelectTrigger
-            as={Button}
+          <Select
             size={size}
-            width="auto"
-            px="$1"
-            variant="solid"
-            colorScheme={merged.colorScheme}
+            variant="unstyled"
+            value={store.current}
+            onChange={(page) => {
+              onPageChange(+page)
+            }}
           >
-            <Box px={store.current > 10 ? "$1_5" : "$2"}>{store.current}</Box>
-            <TbSelector />
-          </SelectTrigger>
-          <SelectContent minW="80px">
-            <SelectListbox>
-              <For each={allPages()}>
-                {(page) => (
-                  <SelectOption value={page}>
-                    <SelectOptionText px="$2">{page}</SelectOptionText>
-                  </SelectOption>
-                )}
-              </For>
-            </SelectListbox>
-          </SelectContent>
-        </Select>
+            <SelectTrigger
+              as={Button}
+              size={size}
+              width="auto"
+              px="$1"
+              variant="solid"
+              colorScheme={merged.colorScheme}
+            >
+              <Box px={store.current > 10 ? "$1_5" : "$2"}>
+                {store.current}
+              </Box>
+              <TbSelector />
+            </SelectTrigger>
+            <SelectContent minW="80px">
+              <SelectListbox>
+                <For each={Array.from({ length: pages() }, (_, i) => 1 + i)}>
+                  {(page) => (
+                    <SelectOption value={page}>
+                      <SelectOptionText px="$2">{page}</SelectOptionText>
+                    </SelectOption>
+                  )}
+                </For>
+              </SelectListbox>
+            </SelectContent>
+          </Select>
+        </Show>
         <For each={rightPages()}>
           {(page) => (
             <Button

@@ -60,7 +60,7 @@ export const Tasks = (props: TasksProps) => {
   const [page, setPage] = createSignal(1)
   const [total, setTotal] = createSignal(0)
   const [tasks, setTasks] = createSignal<TaskAttribute[]>([])
-  const [orderBy, setOrderBy] = createSignal<TaskOrderBy>("name")
+  const [orderBy, setOrderBy] = createSignal<TaskOrderBy | undefined>(undefined)
   const [orderReverse, setOrderReverse] = createSignal(false)
   const [regexFilterValue, setRegexFilterValue] = createSignal("")
   const [regexCompileFailed, setRegexCompileFailed] = createSignal(false)
@@ -88,8 +88,10 @@ export const Tasks = (props: TasksProps) => {
           : -1,
   }
   const curSorter = createMemo(() => {
+    const order = orderBy()
+    if (!order) return undefined
     return (a: TaskInfo, b: TaskInfo) =>
-      (orderReverse() ? -1 : 1) * sorter[orderBy()](a, b)
+      (orderReverse() ? -1 : 1) * sorter[order](a, b)
   })
   const [loading, get] = useFetch(
     (targetPage = page()): PPageResp<TaskInfo> =>
@@ -97,8 +99,6 @@ export const Tasks = (props: TasksProps) => {
         params: {
           page: targetPage,
           page_size: pageSize,
-          order_by: orderBy(),
-          order: orderReverse() ? "desc" : "asc",
           mine: showOnlyMine(),
           regex:
             regexCompileFailed() || regexFilterValue() === ""
@@ -147,7 +147,7 @@ export const Tasks = (props: TasksProps) => {
               local: taskLocal,
             }
           })
-          .sort(curSorter()) ?? []
+          ?.sort(curSorter() ?? (() => 0)) ?? []
       setTasks(newTasks)
       setTotal(data?.total ?? 0)
       setPage(targetPage)
@@ -245,7 +245,12 @@ export const Tasks = (props: TasksProps) => {
             setOrderReverse(false)
           })
         }
-        refresh(page())
+        // local sort only; no need to refetch
+        setTasks((prev) => {
+          const sorter = curSorter()
+          if (!sorter) return prev
+          return [...prev].sort(sorter) as TaskAttribute[]
+        })
       },
     }
   }
