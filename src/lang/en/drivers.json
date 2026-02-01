@@ -1109,6 +1109,8 @@
     "chunk_size-tips": "Chunk size in MiB",
     "cookie": "Cookie",
     "cookie-tips": "access_token=xxx",
+    "random_chunk_name": "Random chunk name",
+    "random_chunk_name-tips": "Random chunk name",
     "root_folder_path": "Root folder path",
     "upload_concurrency": "Upload concurrency",
     "upload_concurrency-tips": "Concurrency upload requests",
