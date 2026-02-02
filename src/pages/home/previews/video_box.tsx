@@ -45,6 +45,12 @@ export const players: {
     platforms: ["Windows", "MacOS", "Linux", "Android", "iOS"],
   },
   {
+    icon: "android",
+    name: "Android",
+    scheme: "intent:$durl#Intent;type=video/*;S.title=$name;end",
+    platforms: ["Android"],
+  },
+  {
     icon: "nplayer",
     name: "nPlayer",
     scheme: "nplayer-$durl",
