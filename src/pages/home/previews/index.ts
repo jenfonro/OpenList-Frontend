@@ -121,6 +121,16 @@ const previews: Preview[] = [
     component: lazy(() => import("./heic")),
     prior: true,
   },
+  ...(import.meta.env.VITE_LITE === "true"
+    ? []
+    : [
+        {
+          name: "PDF Preview",
+          exts: ["pdf"],
+          component: lazy(() => import("./pdf")),
+          prior: true,
+        },
+      ]),
   {
     name: "PPT Preview",
     exts: ["pptx"],
